@@ -14,7 +14,7 @@ async function main() {
 
     const mintTokens = await tokenVotes.write.mint([deployer.account.address, MINT_AMOUNT]);
     await publicClient.waitForTransactionReceipt({ hash: mintTokens });
-    console.log(`Minted 100 tokens to: ${deployer.account.address}`);
+    console.log(`Minted ${MINT_AMOUNT.toString()} decimal units to account: ${deployer.account.address}`);
 
     const balanceDeployer = await tokenVotes.read.balanceOf([deployer.account.address]);
     console.log(`Balance of ${deployer.account.address}: ${balanceDeployer}`);
@@ -31,32 +31,38 @@ async function main() {
     ]);
     console.log("tokenizedBallot address: ", tokenizedBallot.address);
 
-    const mintTokens2 = await tokenVotes.write.mint([deployer.account.address, MINT_AMOUNT]);
+    const mintTokens2 = await tokenVotes.write.mint([acc1.account.address, MINT_AMOUNT]);
     await publicClient.waitForTransactionReceipt({ hash: mintTokens2 });
-    console.log(`Minted 100 tokens to: ${deployer.account.address}`);
-
-    const delegateTx = await tokenVotes.write.delegate([
-        deployer.account.address],
-        { account: deployer.account }
-    );
-    await publicClient.waitForTransactionReceipt({ hash: delegateTx });
-    console.log(`Delegated voting power to ${deployer.account.address}`);
+    console.log(`Minted ${MINT_AMOUNT.toString()} decimal units to account: ${acc1.account.address}`);
 
     // Getting voting power
     console.log("Getting voting power: ");
     const votingPower = await tokenizedBallot.read.getVotePower([deployer.account.address]);
     console.log(`Voting power of ${deployer.account.address}: ${votingPower}`);
 
+    const delegateTx = await tokenVotes.write.delegate([
+        acc1.account.address],
+        { account: deployer.account }
+    );
+    await publicClient.waitForTransactionReceipt({ hash: delegateTx });
+    console.log(`Delegated voting power to ${deployer.account.address}`);
+
     // Voting
     console.log("Voting: ");
     const proposalIndex = 0n; // The index of the proposal you want to vote for
-    const amountToVote = votingPower;
+    const amountToVote = votingPower / 2n;
     const votingTx = await tokenizedBallot.write.vote(
         [proposalIndex, amountToVote],
         { account: deployer.account }
     );
     await publicClient.waitForTransactionReceipt({ hash: votingTx });
     console.log(`Vote transaction hash: ${votingTx}`);
+
+    const winningProposal = await tokenizedBallot.read.winningProposal();
+    console.log(`Winning proposal: ${winningProposal}`);
+
+    const winner = await tokenizedBallot.read.winnerName();
+    console.log(`Winner: ${winner}`);
 }
 
 main()
