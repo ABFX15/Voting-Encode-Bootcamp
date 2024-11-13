@@ -7,21 +7,17 @@ const MINT_AMOUNT = parseEther("100");
 async function main() {
     const publicClient = await viem.getPublicClient();
     const [deployer, acc1, acc2] = await viem.getWalletClients();
+    const acc1Account = acc1!.account;
+    const acc1Address = acc1Account.address;
+    const acc2Account = acc2!.account;
+    const acc2Address = acc2Account.address;
 
-    // Get the contract factory
+    // Deploy contracts
     const tokenVotes = await viem.deployContract("MyToken");
     console.log(`MyTokenVotes address: ${tokenVotes.address}`);
-
-    const mintTokens = await tokenVotes.write.mint([deployer.account.address, MINT_AMOUNT]);
-    await publicClient.waitForTransactionReceipt({ hash: mintTokens });
-    console.log(`Minted ${MINT_AMOUNT.toString()} decimal units to account: ${deployer.account.address}`);
-
-    const balanceDeployer = await tokenVotes.read.balanceOf([deployer.account.address]);
-    console.log(`Balance of ${deployer.account.address}: ${balanceDeployer}`);
-
     const currentBlockNumber = await publicClient.getBlockNumber();
-    const targetBlockNumber = currentBlockNumber + 1n;
     console.log("Current block number:", currentBlockNumber);
+    const targetBlockNumber = currentBlockNumber + 1n;
     console.log("Target block number:", targetBlockNumber);
 
     const tokenizedBallot = await viem.deployContract("TokenizedBallot", [
@@ -31,26 +27,55 @@ async function main() {
     ]);
     console.log("tokenizedBallot address: ", tokenizedBallot.address);
 
-    const mintTokens2 = await tokenVotes.write.mint([acc1.account.address, MINT_AMOUNT]);
-    await publicClient.waitForTransactionReceipt({ hash: mintTokens2 });
-    console.log(`Minted ${MINT_AMOUNT.toString()} decimal units to account: ${acc1.account.address}`);
+    // Mint tokens
+    const mintTokensTx = await tokenVotes.write.mint([acc1Address, MINT_AMOUNT]);
+    await publicClient.waitForTransactionReceipt({ hash: mintTokensTx });
+    console.log(`Minted ${MINT_AMOUNT.toString()} decimal units to account: ${acc1Address}`);
+    const balanceBN = await tokenVotes.read.balanceOf([acc1Address]);
+    console.log(`Balance of ${acc1Address}: ${balanceBN}`);
 
-    // Getting voting power
-    console.log("Getting voting power: ");
-    const votingPower = await tokenizedBallot.read.getVotePower([deployer.account.address]);
-    console.log(`Voting power of ${deployer.account.address}: ${votingPower}`);
+    // Get voting power
+    const votingPowerTx = await tokenVotes.read.getVotes([acc1Address]);
+    console.log(`Voting power of ${acc1Address}: ${votingPowerTx}`);
 
+    // Self delegate
     const delegateTx = await tokenVotes.write.delegate([
-        acc1.account.address],
-        { account: deployer.account }
+        acc1Address],
+        { account: acc1Account }
     );
     await publicClient.waitForTransactionReceipt({ hash: delegateTx });
     console.log(`Delegated voting power to ${deployer.account.address}`);
+    const votesAfter = await tokenVotes.read.getVotes([acc1Address]);
+    console.log(`Voting power after delegation: ${votesAfter}`);
+
+    // Token transfer
+    const transferTx = await tokenVotes.write.transfer(
+        [acc2Address, MINT_AMOUNT / 2n],
+        {
+            account: acc1Account,
+        }
+    );
+    await publicClient.waitForTransactionReceipt({ hash: transferTx });
+    console.log(`Transfer approved from ${acc1.account.address}, `)
+    const votesAfterTransfer = await tokenVotes.read.getVotes([acc1Address]);
+    console.log(`Voting power after transfer: ${votesAfterTransfer}`);
+    const votesAcc2 = await tokenVotes.read.getVotes([acc2Address]);
+    console.log(`Voting power of ${acc2Address}: ${votesAcc2}`);
+
+    // Delegate transactio
+    const delegateTx2 = await tokenVotes.write.delegate([
+        acc2Address],
+        { account: acc2Account }
+    );
+    await publicClient.waitForTransactionReceipt({ hash: delegateTx2 });
+    console.log(`Delegated voting power to ${acc2Address}`);
+    const votesAfter2 = await tokenVotes.read.getVotes([acc2Address]);
+    console.log(`Voting power after delegation: ${votesAfter2}`);
 
     // Voting
     console.log("Voting: ");
     const proposalIndex = 0n; // The index of the proposal you want to vote for
-    const amountToVote = votingPower / 2n;
+    const amountToVote = votingPowerTx / 2n;
     const votingTx = await tokenizedBallot.write.vote(
         [proposalIndex, amountToVote],
         { account: deployer.account }
